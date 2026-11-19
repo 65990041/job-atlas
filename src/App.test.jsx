@@ -2,8 +2,10 @@
 import React from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from './App.jsx';
+
+vi.mock('./components/MapView.jsx', () => ({ default: ({ groups }) => <div data-testid="map-view">{groups.map(group => group.site.label).join(' / ')}</div> }));
 
 afterEach(() => cleanup());
 
@@ -47,5 +49,33 @@ describe('job atlas', () => {
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(document.activeElement).toBe(card);
+  });
+
+  it('opens a job-specific map popup and returns to the detail panel', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.type(screen.getByRole('searchbox', { name: 'ค้นหาตำแหน่งหรือบริษัท' }), 'IL-ESA26-0005');
+    await user.click(screen.getByRole('button', { name: /Sale Engineer/ }));
+    const opener = screen.getByRole('button', { name: 'ดูบนแผนที่' });
+    await user.click(opener);
+    const mapDialog = screen.getByRole('dialog', { name: 'แผนที่สถานที่ทำงาน' });
+    expect(mapDialog).toBeTruthy();
+    expect(screen.getByTestId('map-view').textContent).toContain('ลำลูกกา');
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'แผนที่สถานที่ทำงาน' })).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'รายละเอียดงาน' })).toBeTruthy();
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it('shows both possible sites and their precision in the map popup', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.type(screen.getByRole('searchbox', { name: 'ค้นหาตำแหน่งหรือบริษัท' }), 'IL-ESA26-0040');
+    await user.click(screen.getByRole('button', { name: /IL-ESA26-0040/ }));
+    await user.click(screen.getByRole('button', { name: 'ดูบนแผนที่' }));
+    const mapDialog = screen.getByRole('dialog', { name: 'แผนที่สถานที่ทำงาน' });
+    expect(mapDialog.textContent).toContain('นิคมอุตสาหกรรมนวนคร');
+    expect(mapDialog.textContent).toContain('จังหวัดพระนครศรีอยุธยา');
+    expect(mapDialog.textContent).toContain('ระดับจังหวัด');
   });
 });
